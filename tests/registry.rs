@@ -1382,3 +1382,42 @@ fn toml_lies_but_index_is_truth() {
     assert_that(p.cargo("build").arg("-v"),
                 execs().with_status(0));
 }
+
+#[test]
+fn precise_dep_hell() {
+    Package::new("foo", "0.1.0").publish();
+    Package::new("foo", "0.2.0").publish();
+    Package::new("foo", "0.3.0").publish();
+
+    let p = project("foobar")
+        .file("Cargo.toml", r#"
+            [package]
+            name = "foobar"
+            authors = []
+            version = "0.0.1"
+
+            [dependencies]
+            bar = { path = "bar"}
+            foo = "0.3.0"
+        "#)
+        .file("src/main.rs", "fn main() {}")
+        .file("bar/Cargo.toml", r#"
+            [package]
+            name = "bar"
+            authors = []
+            version = "0.0.1"
+
+            [lib]
+            name = "bar"
+            path = "src/lib.rs"
+
+            [dependencies]
+            foo = "0.1.0"
+        "#)
+        .file("bar/src/lib.rs", "");
+    p.build();
+
+    assert_that(p.cargo("build"), execs().with_status(0));
+    assert_that(p.cargo("update").arg("-pfoo:0.3.0").arg("--precise=0.2.0"),
+                execs().with_status(0).with_stdout(""));
+}
